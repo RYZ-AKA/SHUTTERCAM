@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Camera Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; touch-action: none; }
+        canvas { display: block; }
+        
+        /* GAME UI */
+        #joystick-wrapper {
+            position: absolute; bottom: 40px; left: 40px; width: 120px; height: 120px;
+            background: rgba(255, 255, 255, 0.2); border-radius: 50%; touch-action: none; z-index: 10;
+            display: none;
+        }
+        #joystick-knob {
+            position: absolute; top: 50%; left: 50%; width: 50px; height: 50px;
+            background: rgba(255, 255, 255, 0.5); border-radius: 50%; transform: translate(-50%, -50%);
+        }
+        #jump-button {
+            position: absolute; bottom: 40px; right: 40px; width: 70px; height: 70px;
+            background: rgba(255, 255, 255, 0.3); border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: 50%; color: white; font-size: 14px; font-weight: bold;
+            display: none; justify-content: center; align-items: center; text-transform: uppercase;
+            z-index: 10; user-select: none; -webkit-user-select: none; touch-action: none;
+        }
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
+            border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%);
+            pointer-events: none; opacity: 0.5; z-index: 5;
+        }
+        #instructions {
+            position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.3);
+            padding: 10px; border-radius: 5px; pointer-events: none; z-index: 5;
+        }
+
+        /* INVENTORY BAR */
+        #inventory-bar {
+            position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 20px; z-index: 200;
+        }
+        .inv-item {
+            width: 60px; height: 60px; background: rgba(0,0,0,0.6); border: 3px solid #555;
+            display: flex; align-items: center; justify-content: center; font-size: 30px; border-radius: 10px;
+            cursor: pointer;
+        }
+        .inv-item.active { border-color: #ffd700; background: #333; }
+
+        /* CAMERA UI */
+        #digicam-body {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: transparent; display: none; z-index: 100; pointer-events: none;
+        }
+        #cam-viewport {
+            position: absolute; top: 5%; left: 5%; width: 90%; height: 80%;
+            border: 3px solid rgba(255,255,255,0.3); border-radius: 15px;
+            overflow: hidden; background: transparent; pointer-events: auto;
+        }
+        
+        #digital-grain {
+            position: absolute; top:0; left:0; width:100%; height:100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15'/%3E%3C/svg%3E");
+            pointer-events: none; display: none; z-index: 2; mix-blend-mode: overlay;
+        }
+
+        #grid-lines { width:100%; height:100%; position:absolute; display:none; pointer-events: none; z-index: 1; }
+        .grid-v { position:absolute; width:1px; height:100%; background:rgba(255,255,255,0.3); }
+        .grid-h { position:absolute; height:1px; width:100%; background:rgba(255,255,255,0.3); }
+
+        .cam-top-bar {
+            position: absolute; top: 0; width: 100%; display: flex; justify-content: space-between;
+            padding: 15px; box-sizing: border-box; color: white; font-family: monospace; font-size: 14px; z-index: 3;
+        }
+        .cam-top-left { display: flex; gap: 15px; cursor: pointer; pointer-events: auto; }
+        #mode-btn {
+            background: #ffd700; color: black; padding: 5px 10px; font-weight: bold;
+            cursor: pointer; border: none; font-family: monospace; pointer-events: auto;
+        }
+
+        .cam-bottom-bar {
+            position: absolute; bottom: 0; left: 0; width: 100%; padding: 15px; box-sizing: border-box;
+            display: flex; flex-direction: column; gap: 10px; z-index: 3; background: linear-gradient(transparent, rgba(0,0,0,0.8));
+        }
+        .zoom-row { display: flex; align-items: center; gap: 10px; color: white; width:60%; }
+        .zoom-btns { display: flex; gap: 10px; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 15px; }
+        .zoom-btns span { cursor: pointer; padding: 0 5px; pointer-events: auto; }
+        .zoom-btns span.active-zoom { color: #ffd700; font-weight: bold; }
+        #zoom-slider { flex-grow: 1; accent-color: #ffd700; pointer-events: auto; }
+
+        .bright-row { display: flex; align-items: center; gap: 10px; color: white; }
+        #bright-slider { flex-grow: 1; accent-color: #ffd700; pointer-events: auto; }
+        #bright-lock { cursor: pointer; font-size: 18px; pointer-events: auto; }
+
+        #cam-dpad {
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%); 
+            display: grid; grid-template-columns: repeat(3, 50px); grid-template-rows: repeat(3, 50px); gap: 5px; z-index: 3;
+        }
+        .dpad-btn {
+            background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px;
+            color: white; font-size: 20px; display: flex; justify-content: center; align-items: center;
+            cursor: pointer; user-select: none; pointer-events: auto; flex-direction: column;
+        }
+        .dpad-btn:active { background: rgba(255,255,255,0.3); }
+        .dpad-sub { font-size: 9px; color: #aaa; }
+        #btn-ok { background: #ffd700; color: black; font-weight: bold; border-radius: 50%; font-size: 16px; }
+        #btn-settings { background: #333; border-radius: 50%; font-size: 20px; margin-top: 10px; pointer-events: auto; }
+
+        .cam-popup {
+            position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.9); padding: 20px; border: 1px solid #ffd700;
+            display: none; flex-direction: column; gap: 15px; color: white; z-index: 20; width: 250px; pointer-events: auto;
+        }
+        .cam-popup input { width: 100%; accent-color: #ffd700; }
+        .cam-popup button { background: #ffd700; border: none; padding: 10px; font-weight: bold; cursor: pointer; }
+
+        #gallery-overlay {
+            position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.95);
+            display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 50; color: white; pointer-events: auto;
+        }
+        #gallery-images { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-height: 80%; overflow-y: auto; }
+        #gallery-images img { width: 100px; height: auto; border: 2px solid #fff; }
+        .close-gallery { margin-top: 20px; background: #ffd700; color: black; padding: 10px 20px; border: none; font-weight: bold; cursor: pointer; }
+
+        #timer-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 100px; color: white; font-weight: bold; display: none; z-index: 30; text-shadow: 0 0 20px black;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="inventory-bar">
+        <div id="slot-hand" class="inv-item active" onclick="useItem('hand')">✋</div>
+        <div id="slot-cam" class="inv-item" onclick="useItem('cam')">📷</div>
+    </div>
+
+    <div id="crosshair"></div>
+    <div id="joystick-wrapper"><div id="joystick-knob"></div></div>
+    <div id="jump-button">JUMP</div>
+    <div id="instructions">WASD Move | Space Jump | Click Look</div>
+
+    <div id="digicam-body">
+        <div id="cam-viewport">
+            <div id="digital-grain"></div>
+            <div id="grid-lines">
+                <div class="grid-v" style="left:33.3%"></div>
+                <div class="grid-v" style="left:66.6%"></div>
+                <div class="grid-h" style="top:33.3%"></div>
+                <div class="grid-h" style="top:66.6%"></div>
+            </div>
+
+            <div class="cam-top-bar">
+                <div class="cam-top-left">
+                    <div onclick="openPopup('ISO')">ISO: <span id="val-iso">A</span></div>
+                    <div onclick="openPopup('SHUTTER')">S: <span id="val-shutter">A</span></div>
+                </div>
+                <button id="mode-btn" onclick="nextMode()">NORMAL</button>
+            </div>
+
+            <div class="cam-bottom-bar">
+                <div class="zoom-row">
+                    <div class="zoom-btns">
+                        <span onclick="setZoom(0.5)">0.5</span>
+                        <span onclick="setZoom(1)" class="active-zoom">1</span>
+                        <span onclick="setZoom(5)">5</span>
+                    </div>
+                    <input type="range" id="zoom-slider" min="0.5" max="10" step="0.1" value="1" oninput="setZoom(this.value)">
+                    <span id="zoom-val" style="width: 40px;">1x</span>
+                </div>
+                <div class="bright-row">
+                    <span id="bright-lock" onclick="toggleBrightLock()">🔓</span>
+                    <input type="range" id="bright-slider" min="0.1" max="3" step="0.05" value="1">
+                    <span id="bright-val">1.0</span>
+                </div>
+            </div>
+
+            <div id="cam-dpad">
+                <div></div>
+                <div class="dpad-btn" onclick="cycleFlash()">⚡<span class="dpad-sub" id="flash-icon"></span></div>
+                <div></div>
+                <div class="dpad-btn" onclick="cycleTimer()">⏲️<span class="dpad-sub" id="timer-icon"></span></div>
+                <div class="dpad-btn" id="btn-ok" onclick="takeAction()">OK</div>
+                <div class="dpad-btn" onclick="toggleOIS()">🎯<span class="dpad-sub" id="ois-icon"></span></div>
+                <div></div>
+                <div class="dpad-btn" onclick="openGallery()">🖼️<span class="dpad-sub">Gallery</span></div>
+                <div></div>
+            </div>
+            <div style="position:absolute; right: 15px; bottom: 15px; pointer-events: auto;">
+                <div class="dpad-btn" id="btn-settings" onclick="openPopup('SETTINGS')">⚙️</div>
+            </div>
+        </div>
+
+        <div id="popup-iso" class="cam-popup">
+            <h3>ISO Setting</h3>
+            <input type="range" id="iso-slider" min="0" max="2" step="1" value="0">
+            <div style="display:flex; justify-content:space-between"><span>A</span><span>400</span><span>1600</span></div>
+            <button onclick="applyPopup('ISO')">OK</button>
+        </div>
+        <div id="popup-shutter" class="cam-popup">
+            <h3>Shutter Speed</h3>
+            <input type="range" id="shutter-slider" min="0" max="2" step="1" value="0">
+            <div style="display:flex; justify-content:space-between"><span>A</span><span>1/8</span><span>1</span></div>
+            <button onclick="applyPopup('SHUTTER')">OK</button>
+        </div>
+        <div id="popup-settings" class="cam-popup">
+            <h3>Settings</h3>
+            <div><input type="checkbox" id="chk-grid" onchange="toggleGrid()"> Rule of Thirds</div>
+            <div><input type="checkbox" id="chk-wb" onchange="toggleWB()"> Cool WB</div>
+            <div><input type="checkbox" id="chk-watermark" checked> Watermark</div>
+            <button onclick="applyPopup('SETTINGS')">OK</button>
+        </div>
+
+        <div id="gallery-overlay">
+            <h2>GALLERY</h2>
+            <div id="gallery-images"></div>
+            <button class="close-gallery" onclick="closeGallery()">CLOSE</button>
+        </div>
+
+        <div id="timer-overlay"></div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+import * as THREE from 'three';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// NOISE
+const grad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
+const p = Array.from({length: 256}, () => Math.floor(Math.random() * 256));
+const perm = [...p, ...p];
+function dot(g, x, y) { return g[0]*x + g[1]*y; }
+function noise(xin, yin) {
+    let n0, n1, n2; const F2 = 0.5 * (Math.sqrt(3.0) - 1.0); const s = (xin + yin) * F2;
+    const i = Math.floor(xin + s); const j = Math.floor(yin + s); const G2 = (3.0 - Math.sqrt(3.0)) / 6.0;
+    const t = (i + j) * G2; const x0 = xin - (i - t); const y0 = yin - (j - t); let i1, j1;
+    if (x0 > y0) { i1 = 1; j1 = 0; } else { i1 = 0; j1 = 1; }
+    const x1 = x0 - i1 + G2; const y1 = y0 - j1 + G2; const x2 = x0 - 1.0 + 2.0 * G2; const y2 = y0 - 1.0 + 2.0 * G2;
+    const ii = i & 255; const jj = j & 255;
+    const gi0 = perm[ii + perm[jj]] % 12; const gi1 = perm[ii + i1 + perm[jj + j1]] % 12; const gi2 = perm[ii + 1 + perm[jj + 1]] % 12;
+    let t0 = 0.5 - x0*x0 - y0*y0; if (t0 < 0) n0 = 0.0; else { t0 *= t0; n0 = t0 * t0 * dot(grad3[gi0], x0, y0); }
+    let t1 = 0.5 - x1*x1 - y1*y1; if (t1 < 0) n1 = 0.0; else { t1 *= t1; n1 = t1 * t1 * dot(grad3[gi1], x1, y1); }
+    let t2 = 0.5 - x2*x2 - y2*y2; if (t2 < 0) n2 = 0.0; else { t2 *= t2; n2 = t2 * t2 * dot(grad3[gi2], x2, y2); }
+    return 70.0 * (n0 + n1 + n2);
+}
+
+const CHUNK_SIZE = 64; const VIEW_DISTANCE = 3; const TERRAIN_HEIGHT = 15; const TERRAIN_FREQ = 0.01;
+let worldTime = 1.57; const DAY_SPEED = 0.005; // 1.57 starts at NOON!
+
+const skyColors = { day: new THREE.Color(0x87ceeb), sunset: new THREE.Color(0xffa07a), night: new THREE.Color(0x0a0a1a) };
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+scene.fog = new THREE.FogExp2(0x87ceeb, 0.01);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+camera.rotation.order = 'YXZ';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+window.threeCamera = camera; 
+window.threeRenderer = renderer;
+window.threeScene = scene;
+window.gameCanvas = renderer.domElement;
+window.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+const gltfLoader = new GLTFLoader();
+const rockVariants = []; let treeModel = null;
+gltfLoader.load('stone.glb', (gltf) => { gltf.scene.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; rockVariants.push(child); } }); updateChunks(); });
+gltfLoader.load('stylized_tree_1.glb', (gltf) => { treeModel = gltf.scene; treeModel.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } }); updateChunks(); });
+
+const sunLight = new THREE.DirectionalLight(0xffffff, 1); sunLight.castShadow = true;
+sunLight.shadow.camera.left = -100; sunLight.shadow.camera.right = 100; sunLight.shadow.camera.top = 100; sunLight.shadow.camera.bottom = -100;
+scene.add(sunLight);
+const sunVisual = new THREE.Mesh(new THREE.SphereGeometry(12, 16, 16), new THREE.MeshBasicMaterial({ color: 0xfff500, fog: false })); scene.add(sunVisual);
+const moonVisual = new THREE.Mesh(new THREE.SphereGeometry(10, 16, 16), new THREE.MeshBasicMaterial({ color: 0xeeeeee, fog: false })); scene.add(moonVisual);
+const starVertices = []; for (let i = 0; i < 2000; i++) starVertices.push((Math.random()-0.5)*1000, Math.random()*500, (Math.random()-0.5)*1000);
+const starGeo = new THREE.BufferGeometry(); starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.7, transparent: true, opacity: 0 }); const stars = new THREE.Points(starGeo, starMat); scene.add(stars);
+
+class Chunk {
+    constructor(x, z) { this.x = x; this.z = z; this.mesh = null; this.objects = new THREE.Group(); this.generate(); }
+    getHeight(lx, lz) { const wx = this.x * CHUNK_SIZE + lx; const wz = this.z * CHUNK_SIZE + lz; return noise(wx * TERRAIN_FREQ, wz * TERRAIN_FREQ) * TERRAIN_HEIGHT; }
+    generate() {
+        const geo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, 32, 32); geo.rotateX(-Math.PI / 2);
+        const pos = geo.attributes.position.array; const colors = [];
+        for (let i = 0; i < pos.length; i += 3) { pos[i + 1] = this.getHeight(pos[i], pos[i + 2]); const v = 0.8 + Math.random() * 0.2; colors.push(0.3 * v, 0.6 * v, 0.3 * v); }
+        geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3)); geo.computeVertexNormals();
+        this.mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
+        this.mesh.position.set(this.x * CHUNK_SIZE, 0, this.z * CHUNK_SIZE); this.mesh.receiveShadow = true; scene.add(this.mesh, this.objects);
+        const density = (noise(this.x * 0.1, this.z * 0.1) + 1) / 2;
+        for(let i = 0; i < density * 8; i++) { const rx = (Math.random() - 0.5) * CHUNK_SIZE; const rz = (Math.random() - 0.5) * CHUNK_SIZE; const ry = this.getHeight(rx, rz); const chance = Math.random(); if (chance > 0.4) this.addNewTree(rx, ry, rz); else this.addRock(rx, ry, rz); }
+    }
+    addNewTree(x, y, z) { if (!treeModel) return; const tree = treeModel.clone(); tree.position.set(this.x * CHUNK_SIZE + x, y, this.z * CHUNK_SIZE + z); tree.scale.set(1,1,1); tree.rotation.y = Math.random() * Math.PI; this.objects.add(tree); }
+    addRock(x, y, z) { if (rockVariants.length === 0) return; const rock = rockVariants[Math.floor(Math.random() * rockVariants.length)].clone(); const s = 0.1; rock.scale.set(s, s, s); rock.position.set(this.x * CHUNK_SIZE + x, y, this.z * CHUNK_SIZE + z); this.objects.add(rock); }
+    dispose() { scene.remove(this.mesh, this.objects); this.mesh.geometry.dispose(); this.mesh.material.dispose(); }
+}
+
+const chunks = new Map();
+function updateChunks() {
+    const px = Math.floor(camera.position.x / CHUNK_SIZE); const pz = Math.floor(camera.position.z / CHUNK_SIZE);
+    for (let x = px - VIEW_DISTANCE; x <= px + VIEW_DISTANCE; x++) for (let z = pz - VIEW_DISTANCE; z <= pz + VIEW_DISTANCE; z++) if (!chunks.has(`${x},${z}`)) chunks.set(`${x},${z}`, new Chunk(x, z));
+    for (const [id, c] of chunks) if (Math.abs(c.x - px) > VIEW_DISTANCE || Math.abs(c.z - pz) > VIEW_DISTANCE) { c.dispose(); chunks.delete(id); }
+}
+
+const controls = new PointerLockControls(camera, document.body);
+const moveState = { forward: 0, right: 0, vY: 0, onGround: false };
+window.moveState = moveState; // EXPORTED
+const keys = {};
+window.addEventListener('keydown', (e) => keys[e.code] = true);
+window.addEventListener('keyup', (e) => keys[e.code] = false);
+
+const joyWrapper = document.getElementById('joystick-wrapper');
+const joyKnob = document.getElementById('joystick-knob');
+const jumpBtn = document.getElementById('jump-button');
+let lastTouchX = 0, lastTouchY = 0, touchLookId = null, joyActive = false;
+
+if (window.isMobile) {
+    joyWrapper.style.display = 'block'; jumpBtn.style.display = 'flex';
+    window.addEventListener('touchstart', (e) => { 
+        for (let t of e.changedTouches) { 
+            if (t.clientX > window.innerWidth / 2) { lastTouchX = t.clientX; lastTouchY = t.clientY; touchLookId = t.identifier; } 
+            else if (!window.isHoldingCamera) joyActive = true; // Only move if not holding cam
+        } 
+    });
+    window.addEventListener('touchmove', (e) => { 
+        e.preventDefault(); 
+        for (let t of e.changedTouches) { 
+            if (t.identifier === touchLookId) { // LOOKING - Always allowed
+                camera.rotation.y -= (t.clientX - lastTouchX) * 0.006; 
+                camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x - (t.clientY - lastTouchY) * 0.005)); 
+                lastTouchX = t.clientX; lastTouchY = t.clientY; 
+            } else if (joyActive && t.clientX <= window.innerWidth / 2) { // MOVING
+                const rect = joyWrapper.getBoundingClientRect(); const dist = Math.min(60, Math.sqrt((t.clientX-(rect.left+rect.width/2))**2 + (t.clientY-(rect.top+rect.height/2))**2)); const angle = Math.atan2(t.clientY-(rect.top+rect.height/2), t.clientX-(rect.left+rect.width/2)); joyKnob.style.left = (50 + (Math.cos(angle)*dist/60)*50)+'%'; joyKnob.style.top = (50 + (Math.sin(angle)*dist/60)*50)+'%'; moveState.forward = -Math.sin(angle)*(dist/60); moveState.right = Math.cos(angle)*(dist/60); 
+            } 
+        } 
+    }, { passive: false });
+    window.addEventListener('touchend', (e) => { for (let t of e.changedTouches) { if (t.identifier === touchLookId) touchLookId = null; else { joyActive = false; joyKnob.style.left = joyKnob.style.top = '50%'; moveState.forward = moveState.right = 0; } } });
+    jumpBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if(moveState.onGround) moveState.vY = 12; });
+}
+
+function getTerrainHeight(x, z) { const c = chunks.get(`${Math.floor(x/CHUNK_SIZE)},${Math.floor(z/CHUNK_SIZE)}`); return c ? c.getHeight(x - c.x*CHUNK_SIZE, z - c.z*CHUNK_SIZE) : 0; }
+
+const clock = new THREE.Clock();
+let prevShakeX = 0, prevShakeY = 0;
+
+function animate() {
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta();
+    
+    worldTime += delta * DAY_SPEED;
+    let easedTime = worldTime + Math.sin(worldTime) * 0.5; 
+    const posX = Math.cos(easedTime) * 600; const posY = Math.sin(easedTime) * 600;
+    sunVisual.position.set(camera.position.x + posX, camera.position.y + posY, camera.position.z - 200);
+    moonVisual.position.set(camera.position.x - posX, camera.position.y - posY, camera.position.z - 200);
+    stars.position.set(camera.position.x, 0, camera.position.z);
+    sunLight.position.copy(sunVisual.position);
+
+    if (posY > 100) { scene.background.lerp(skyColors.day, 0.02); scene.fog.color.lerp(skyColors.day, 0.02); sunLight.intensity = 1.0; starMat.opacity = THREE.MathUtils.lerp(starMat.opacity, 0, 0.02); } 
+    else if (posY <= 100 && posY > -100) { scene.background.lerp(skyColors.sunset, 0.02); scene.fog.color.lerp(skyColors.sunset, 0.02); sunLight.intensity = 0.6; starMat.opacity = THREE.MathUtils.lerp(starMat.opacity, 0.3, 0.02); } 
+    else { scene.background.lerp(skyColors.night, 0.02); scene.fog.color.lerp(skyColors.night, 0.02); sunLight.intensity = 0.1; starMat.opacity = THREE.MathUtils.lerp(starMat.opacity, 1.0, 0.02); }
+
+    // MOVEMENT: Only if NOT holding camera
+    if (!window.isHoldingCamera && (controls.isLocked || window.isMobile)) {
+        let ix = window.isMobile ? moveState.right : (keys['KeyD']?1:0)-(keys['KeyA']?1:0);
+        let iz = window.isMobile ? moveState.forward : (keys['KeyW']?1:0)-(keys['KeyS']?1:0);
+        const moveDir = new THREE.Vector3(ix, 0, -iz); if(moveDir.length() > 0) moveDir.normalize();
+        moveDir.applyQuaternion(camera.quaternion); moveDir.y = 0;
+        camera.position.addScaledVector(moveDir, 12 * delta);
+        moveState.vY -= 25 * delta;
+        camera.position.y += moveState.vY * delta;
+        const ground = getTerrainHeight(camera.position.x, camera.position.z) + 1.8;
+        if (camera.position.y <= ground) { camera.position.y = ground; moveState.vY = 0; moveState.onGround = true; if(!window.isMobile && keys['Space']) moveState.vY = 12; } else moveState.onGround = false;
+    }
+
+    // SHAKE & OIS
+    if (window.isHoldingCamera) {
+        camera.rotation.x -= prevShakeX; camera.rotation.y -= prevShakeY;
+        let time = performance.now() * 0.001;
+        let shakeAmount = window.camState.ois ? 0.0002 : 0.0015; 
+        let shakeX = (Math.sin(time* 2.0) + Math.cos(time * 4.2)) * shakeAmount;
+        let shakeY = (Math.cos(time* 1.8) + Math.sin(time * 3.5)) * shakeAmount; // Menambahkan definisi shakeY yang sebelumnya hilang
+        camera.rotation.x += shakeX; camera.rotation.y += shakeY;
+        prevShakeX = shakeX; prevShakeY = shakeY;
+    } else { prevShakeX = 0; prevShakeY = 0; }
+
+    // AUTO BRIGHTNESS
+    if (window.isHoldingCamera && !window.camState.brightnessLocked) {
+        let targetExposure = 1.0;
+        if (posY > 100) targetExposure = 1.0; else if (posY > -100) targetExposure = 1.5; else targetExposure = 3.0;
+        if (window.camState.iso === 1) targetExposure *= 1.5; if (window.camState.iso === 2) targetExposure *= 2.5;
+        if (window.camState.shutter === 1) targetExposure *= 2.0; if (window.camState.shutter === 2) targetExposure *= 3.0;
+        window.camState.brightness = THREE.MathUtils.lerp(window.camState.brightness, targetExposure, 0.05);
+        document.getElementById('bright-slider').value = window.camState.brightness;
+        document.getElementById('bright-val').innerText = window.camState.brightness.toFixed(1);
+    }
+    renderer.toneMappingExposure = window.camState.brightness;
+
+    updateChunks();
+    renderer.render(scene, camera);
+}
+camera.position.set(0, 10, 0);
+animate();
+
+window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+</script>
+
+<script>
+// MUST BE DEFINED FIRST! Prevents "Cannot read properties of undefined" errors
+window.isHoldingCamera = false;
+window.camState = window.camState || {
+    mode: 0, modes: ["NORMAL", "MACRO", "VID", "SLOWMO", "GALLERY"],
+    zoom: 1, brightness: 1.0, brightnessLocked: false,
+    iso: 0, shutter: 0, flash: 0, timer: 0, ois: false, wb: false, watermark: true,
+    isRecording: false, mediaRecorder: null, recordedChunks: []
+};
+
+function useItem(item) {
+    window.isHoldingCamera = (item === 'cam');
+    
+    // --- TAMBAHKAN KODE INI ---
+    if (item === 'hand') {
+        setZoom(1); // Reset zoom ke 1x saat pindah ke tangan
+    }
+    // --------------------------
+
+    document.getElementById('digicam-body').style.display = window.isHoldingCamera ? 'block' : 'none';
+    document.getElementById('joystick-wrapper').style.display = window.isHoldingCamera ? 'none' : (window.isMobile ? 'block' : 'none');
+    document.getElementById('jump-button').style.display = window.isHoldingCamera ? 'none' : (window.isMobile ? 'flex' : 'none');
+    document.getElementById('slot-hand').classList.toggle('active', !window.isHoldingCamera);
+    document.getElementById('slot-cam').classList.toggle('active', window.isHoldingCamera);
+    
+    if (window.moveState) { 
+        window.moveState.forward = 0; 
+        window.moveState.right = 0; 
+        window.moveState.vY = 0; 
+    }
+}
+
+
+function setZoom(val) {
+    val = parseFloat(val); window.camState.zoom = val;
+    if (window.threeCamera) {
+        let fov;
+        if (val <= 1) { fov = 120 - (val - 0.5) * 90; } else { fov = 75 / val; }
+        window.threeCamera.fov = fov; window.threeCamera.updateProjectionMatrix();
+    }
+    document.getElementById('zoom-slider').value = val;
+    document.getElementById('zoom-val').innerText = val.toFixed(1) + 'x';
+    document.querySelectorAll('.zoom-btns span').forEach(e => e.classList.remove('active-zoom'));
+    if(val === 0.5) document.querySelectorAll('.zoom-btns span')[0].classList.add('active-zoom');
+    else if(val === 1) document.querySelectorAll('.zoom-btns span')[1].classList.add('active-zoom');
+    else if(val === 5) document.querySelectorAll('.zoom-btns span')[2].classList.add('active-zoom');
+    document.getElementById('digital-grain').style.display = val > 5 ? 'block' : 'none';
+}
+
+// FUNGSI INI DAN NEXTMODE SEBELUMNYA TERGABUNG & ERROR. SEKARANG SUDAH DIPISAH.
+function toggleBrightLock() {
+    window.camState.brightnessLocked = !window.camState.brightnessLocked;
+    document.getElementById('bright-lock').innerText = window.camState.brightnessLocked ? "🔒" : "🔓";
+}
+
+function nextMode() {
+    window.camState.mode = (window.camState.mode + 1) % window.camState.modes.length;
+    let m = window.camState.modes[window.camState.mode];
+    document.getElementById('mode-btn').innerText = m;
+    if (m === "MACRO") setZoom(5); else setZoom(1);
+    if (m === "GALLERY") openGallery();
+}
+
+function openPopup(type) {
+    if(type === 'ISO') document.getElementById('popup-iso').style.display = 'flex';
+    else if(type === 'SHUTTER') document.getElementById('popup-shutter').style.display = 'flex';
+    else if(type === 'SETTINGS') document.getElementById('popup-settings').style.display = 'flex';
+}
+function applyPopup(type) {
+    if(type === 'ISO') { window.camState.iso = parseInt(document.getElementById('iso-slider').value); let v = ["A", "400", "1600"]; document.getElementById('val-iso').innerText = v[window.camState.iso]; }
+    else if(type === 'SHUTTER') { window.camState.shutter = parseInt(document.getElementById('shutter-slider').value); let v = ["A", "1/8", "1"]; document.getElementById('val-shutter').innerText = v[window.camState.shutter]; }
+    else if(type === 'SETTINGS') { window.camState.watermark = document.getElementById('chk-watermark').checked; }
+    document.getElementById('popup-iso').style.display = 'none'; document.getElementById('popup-shutter').style.display = 'none'; document.getElementById('popup-settings').style.display = 'none';
+}
+
+function cycleFlash() { window.camState.flash = (window.camState.flash + 1) % 3; let icons = ["", "⚡", "⚡A"]; document.getElementById('flash-icon').innerText = icons[window.camState.flash]; }
+function cycleTimer() { window.camState.timer = (window.camState.timer + 1) % 4; let t = [0,1,3,5]; document.getElementById('timer-icon').innerText = t[window.camState.timer] > 0 ? t[window.camState.timer]+"s" : ""; window.camState.timer = t[window.camState.timer]; }
+function toggleOIS() { window.camState.ois = !window.camState.ois; document.getElementById('ois-icon').innerText = window.camState.ois ? "ON" : ""; }
+function toggleGrid() { document.getElementById('grid-lines').style.display = document.getElementById('chk-grid').checked ? 'block' : 'none'; }
+function toggleWB() { window.camState.wb = document.getElementById('chk-wb').checked; if(window.threeScene) { window.threeScene.fog.color.set(window.camState.wb ? 0x8899bb : 0x87ceeb); window.threeScene.background.set(window.camState.wb ? 0x8899bb : 0x87ceeb); }}
+
+function openGallery() { document.getElementById('gallery-overlay').style.display = 'flex'; document.getElementById('gallery-images').innerHTML = ''; for (let i = 0; i < localStorage.length; i++) { let key = localStorage.key(i); if (key.startsWith('digi_')) { let img = document.createElement('img'); img.src = localStorage.getItem(key); document.getElementById('gallery-images').appendChild(img); } } }
+function closeGallery() { document.getElementById('gallery-overlay').style.display = 'none'; }
+
+async function takeAction() {
+    let mode = window.camState.modes[window.camState.mode];
+    if (mode === "GALLERY") { openGallery(); return; }
+    if (mode === "VID" || mode === "SLOWMO") { handleVideo(); return; }
+    if (window.camState.timer > 0) {
+        let timeLeft = window.camState.timer; let overlay = document.getElementById('timer-overlay'); overlay.style.display = 'block';
+        let interval = setInterval(() => { overlay.innerText = timeLeft; timeLeft--; if(timeLeft < 0) { clearInterval(interval); overlay.style.display = 'none'; capturePhoto(); } }, 1000);
+    } else { capturePhoto(); }
+}
+
+function capturePhoto() {
+    if (window.camState.flash > 0) { const f = document.createElement('div'); f.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:white;z-index:999;pointer-events:none;"; document.body.appendChild(f); setTimeout(() => f.remove(), 100); }
+    const canvas = window.gameCanvas; const tempCanvas = document.createElement('canvas'); tempCanvas.width = canvas.width; tempCanvas.height = canvas.height;
+    const ctx = tempCanvas.getContext('2d'); ctx.drawImage(canvas, 0, 0);
+    if (window.camState.watermark) { ctx.font = "24px Arial"; ctx.fillStyle = "rgba(255, 255, 255, 0.8)"; ctx.shadowColor = "black"; ctx.shadowBlur = 4; let text = "DIGICAM 2026 | " + new Date().toLocaleString(); ctx.fillText(text, 20, tempCanvas.height - 30); }
+    const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.9); let id = 'digi_' + Date.now(); localStorage.setItem(id, dataUrl);
+    const link = document.createElement('a'); link.download = `DIGI_${Date.now()}.jpg`; link.href = dataUrl; link.click();
+}
+
+function handleVideo() {
+    if (!window.camState.isRecording) {
+        window.camState.isRecording = true; window.camState.recordedChunks = [];
+        const fps = window.camState.modes[window.camState.mode] === "SLOWMO" ? 15 : 30;
+        const stream = window.gameCanvas.captureStream(fps); window.camState.mediaRecorder = new MediaRecorder(stream);
+        window.camState.mediaRecorder.ondataavailable = (e) => window.camState.recordedChunks.push(e.data);
+        window.camState.mediaRecorder.onstop = () => { const blob = new Blob(window.camState.recordedChunks, { type: 'video/webm' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `VIDEO_${Date.now()}.webm`; a.click(); };
+        window.camState.mediaRecorder.start(); document.getElementById('mode-btn').style.background = "red"; document.getElementById('mode-btn').innerText = "● REC";
+    } else {
+        window.camState.isRecording = false; window.camState.mediaRecorder.stop();
+        document.getElementById('mode-btn').style.background = "#ffd700"; document.getElementById('mode-btn').innerText = window.camState.modes[window.camState.mode];
+    }
+}
+</script>
+</body>
+</html>
