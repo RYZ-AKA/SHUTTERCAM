@@ -6,33 +6,76 @@
     <title>Camera Game</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; touch-action: none; }
-        canvas { display: block; }
+        canvas { width: 100%; height: 100%; }
+        
+
+/* --- GANTI TOTAL BLOK PORTRAIT DI STYLE DENGAN INI --- */
+@media screen and (orientation: portrait) {
+    html, body {
+        width: 100vh !important;
+        height: 100vw !important;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        /* Di-center dulu pake translate, baru diputar 270 derajat (-90deg) */
+        transform: translate(-50%, -50%) rotate(45deg);
+        overflow: hidden;
+    }
+    
+    canvas, #lobby-menu, #digicam-body {
+        width: 100vh !important;
+        height: 100vw !important;
+        object-fit: fill;
+    }
+}
+
+        /* LOBBY / MENU OVERLAY */
+    #lobby-menu {
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.85)), url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15'/%3E%3C/svg%3E");
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        z-index: 1000; color: white; text-align: center;
+    }
+    #lobby-menu h1 { font-size: 42px; color: #ffd700; text-shadow: 0 0 15px rgba(255, 215, 0, 0.4); margin-bottom: 5px; font-family: monospace; }
+    #lobby-menu p { font-size: 14px; color: #ccc; margin-bottom: 30px; max-width: 400px; line-height: 1.5; }
+    .play-btn {
+        padding: 15px 45px; font-size: 20px; font-weight: bold; font-family: monospace;
+        background: #ffd700; color: black; border: 3px solid white; cursor: pointer;
+        border-radius: 50px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); transition: 0.2s;
+    }
+    .play-btn:hover { transform: scale(1.05); background: white; }
         
         /* GAME UI */
-        #joystick-wrapper {
-            position: absolute; bottom: 40px; left: 40px; width: 120px; height: 120px;
-            background: rgba(255, 255, 255, 0.2); border-radius: 50%; touch-action: none; z-index: 10;
-            display: none;
-        }
-        #joystick-knob {
-            position: absolute; top: 50%; left: 50%; width: 50px; height: 50px;
-            background: rgba(255, 255, 255, 0.5); border-radius: 50%; transform: translate(-50%, -50%);
-        }
-        #jump-button {
-            position: absolute; bottom: 40px; right: 40px; width: 70px; height: 70px;
-            background: rgba(255, 255, 255, 0.3); border: 2px solid rgba(255, 255, 255, 0.6);
-            border-radius: 50%; color: white; font-size: 14px; font-weight: bold;
-            display: none; justify-content: center; align-items: center; text-transform: uppercase;
-            z-index: 10; user-select: none; -webkit-user-select: none; touch-action: none;
-        }
+      /* --- GANTI BAGIAN CONFIG JOYSTICK, BUTTON, DAN SLIDER DI CSS --- */
+#joystick-wrapper {
+    position: absolute; bottom: 30px; left: 30px; width: 100px; height: 100px;
+    background: rgba(255, 255, 255, 0.2); border-radius: 50%; touch-action: none; z-index: 10;
+    display: none;
+}
+#joystick-knob {
+    position: absolute; top: 50%; left: 50%; width: 40px; height: 40px;
+    background: rgba(255, 255, 255, 0.5); border-radius: 50%; transform: translate(-50%, -50%);
+}
+#jump-button {
+    position: absolute; bottom: 30px; right: 30px; width: 65px; height: 65px;
+    background: rgba(255, 255, 255, 0.3); border: 2px solid rgba(255, 255, 255, 0.6);
+    border-radius: 50%; color: white; font-size: 13px; font-weight: bold;
+    display: none; justify-content: center; align-items: center;
+    z-index: 10; user-select: none; -webkit-user-select: none; touch-action: none;
+}
+.cam-bottom-bar {
+    position: absolute; bottom: 0; left: 0; width: 65%; padding: 12px; box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 8px; z-index: 3; background: linear-gradient(transparent, rgba(0,0,0,0.8));
+}
+#cam-dpad {
+    position: absolute; right: 15px; top: 50%; transform: translateY(-50%); 
+    display: grid; grid-template-columns: repeat(3, 45px); grid-template-rows: repeat(3, 45px); gap: 4px; z-index: 3;
+}
+        
         #crosshair {
             position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
             border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%);
             pointer-events: none; opacity: 0.5; z-index: 5;
-        }
-        #instructions {
-            position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.3);
-            padding: 10px; border-radius: 5px; pointer-events: none; z-index: 5;
         }
 
         /* INVENTORY BAR */
@@ -41,11 +84,11 @@
             display: flex; gap: 20px; z-index: 200;
         }
         .inv-item {
-            width: 60px; height: 60px; background: rgba(0,0,0,0.6); border: 3px solid #555;
+            width: 40px; height: 40px; background: rgba(0,0,0,0.6); border: 3px solid #555;
             display: flex; align-items: center; justify-content: center; font-size: 30px; border-radius: 10px;
             cursor: pointer;
         }
-        .inv-item.active { border-color: #ffd700; background: #333; }
+        .inv-item.active { border-color: #ffd700; background: #333; color:white; }
 
         /* CAMERA UI */
         #digicam-body {
@@ -53,7 +96,7 @@
             background: transparent; display: none; z-index: 100; pointer-events: none;
         }
         #cam-viewport {
-            position: absolute; top: 5%; left: 5%; width: 90%; height: 80%;
+            position: absolute; top: 5%; left: 5%; width: 90%; height: 60%;
             border: 3px solid rgba(255,255,255,0.3); border-radius: 15px;
             overflow: hidden; background: transparent; pointer-events: auto;
         }
@@ -77,11 +120,6 @@
             background: #ffd700; color: black; padding: 5px 10px; font-weight: bold;
             cursor: pointer; border: none; font-family: monospace; pointer-events: auto;
         }
-
-        .cam-bottom-bar {
-            position: absolute; bottom: 0; left: 0; width: 100%; padding: 15px; box-sizing: border-box;
-            display: flex; flex-direction: column; gap: 10px; z-index: 3; background: linear-gradient(transparent, rgba(0,0,0,0.8));
-        }
         .zoom-row { display: flex; align-items: center; gap: 10px; color: white; width:60%; }
         .zoom-btns { display: flex; gap: 10px; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 15px; }
         .zoom-btns span { cursor: pointer; padding: 0 5px; pointer-events: auto; }
@@ -91,11 +129,6 @@
         .bright-row { display: flex; align-items: center; gap: 10px; color: white; }
         #bright-slider { flex-grow: 1; accent-color: #ffd700; pointer-events: auto; }
         #bright-lock { cursor: pointer; font-size: 18px; pointer-events: auto; }
-
-        #cam-dpad {
-            position: absolute; right: 10px; top: 50%; transform: translateY(-50%); 
-            display: grid; grid-template-columns: repeat(3, 50px); grid-template-rows: repeat(3, 50px); gap: 5px; z-index: 3;
-        }
         .dpad-btn {
             background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px;
             color: white; font-size: 20px; display: flex; justify-content: center; align-items: center;
@@ -129,16 +162,21 @@
     </style>
 </head>
 <body>
+  
+  <div id="lobby-menu">
+    <h1>DIGICAM ADVENTURE</h1>
+    <p>Gunakan tombol analog untuk berjalan pada Mobile, atau keyboard WASD + Space untuk PC. Ambil foto estetik menggunakan kamera jadoel-mu!</p>
+    <button class="play-btn" onclick="startGame()">START GAME</button>
+</div>
 
     <div id="inventory-bar">
-        <div id="slot-hand" class="inv-item active" onclick="useItem('hand')">✋</div>
+        <div id="slot-hand" class="inv-item active" onclick="useItem('hand')">+</div>
         <div id="slot-cam" class="inv-item" onclick="useItem('cam')">📷</div>
     </div>
 
     <div id="crosshair"></div>
     <div id="joystick-wrapper"><div id="joystick-knob"></div></div>
     <div id="jump-button">JUMP</div>
-    <div id="instructions">WASD Move | Space Jump | Click Look</div>
 
     <div id="digicam-body">
         <div id="cam-viewport">
@@ -179,9 +217,9 @@
                 <div></div>
                 <div class="dpad-btn" onclick="cycleFlash()">⚡<span class="dpad-sub" id="flash-icon"></span></div>
                 <div></div>
-                <div class="dpad-btn" onclick="cycleTimer()">⏲️<span class="dpad-sub" id="timer-icon"></span></div>
+                <div class="dpad-btn" onclick="cycleTimer()">️&#9202;<span class="dpad-sub" id="timer-icon"></span></div>
                 <div class="dpad-btn" id="btn-ok" onclick="takeAction()">OK</div>
-                <div class="dpad-btn" onclick="toggleOIS()">🎯<span class="dpad-sub" id="ois-icon"></span></div>
+                <div class="dpad-btn" onclick="toggleOIS()">OIS<span class="dpad-sub" id="ois-icon"></span></div>
                 <div></div>
                 <div class="dpad-btn" onclick="openGallery()">🖼️<span class="dpad-sub">Gallery</span></div>
                 <div></div>
@@ -234,6 +272,12 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+// GAME MASTER STATE
+window.gameState = "LOBBY";
+// COLLISION SYSTEM HOOKS
+const colliders = [];
+
+
 // NOISE
 const grad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
 const p = Array.from({length: 256}, () => Math.floor(Math.random() * 256));
@@ -281,8 +325,46 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
 const gltfLoader = new GLTFLoader();
 const rockVariants = []; let treeModel = null;
-gltfLoader.load('stone.glb', (gltf) => { gltf.scene.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; rockVariants.push(child); } }); updateChunks(); });
-gltfLoader.load('stylized_tree_1.glb', (gltf) => { treeModel = gltf.scene; treeModel.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } }); updateChunks(); });
+// === CODE UNTUK BATU (stone.glb) ===
+gltfLoader.load('https://cdn.jsdelivr.net/gh/RYZ-AKA/SHUTTERCAM@main/stone.glb', (gltf) => { 
+    gltf.scene.traverse((child) => { 
+        if (child.isMesh) { 
+            child.castShadow = true; 
+            child.receiveShadow = true; 
+            
+            // --- SELIPKAN INI UNTUK MENAJAMKAN TEKSTUR BATU ---
+            if (child.material && child.material.map) {
+                child.material.map.magFilter = THREE.LinearFilter;
+                child.material.map.minFilter = THREE.LinearMipmapLinearFilter;
+                child.material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                child.material.needsUpdate = true;
+            }
+
+            rockVariants.push(child); 
+        } 
+    }); 
+    updateChunks(); 
+});
+
+// === CODE UNTUK POHON (stylized_tree_1.glb) ===
+gltfLoader.load('https://cdn.jsdelivr.net/gh/RYZ-AKA/SHUTTERCAM@main/stylized_tree_1.glb', (gltf) => { 
+    treeModel = gltf.scene; 
+    treeModel.traverse((child) => { 
+        if (child.isMesh) { 
+            child.castShadow = true; 
+            child.receiveShadow = true; 
+            
+            // --- SELIPKAN INI UNTUK MENAJAMKAN TEKSTUR POHON ---
+            if (child.material && child.material.map) {
+                child.material.map.magFilter = THREE.LinearFilter;
+                child.material.map.minFilter = THREE.LinearMipmapLinearFilter;
+                child.material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                child.material.needsUpdate = true;
+            }
+        } 
+    }); 
+    updateChunks(); 
+});
 
 const sunLight = new THREE.DirectionalLight(0xffffff, 1); sunLight.castShadow = true;
 sunLight.shadow.camera.left = -100; sunLight.shadow.camera.right = 100; sunLight.shadow.camera.top = 100; sunLight.shadow.camera.bottom = -100;
@@ -306,52 +388,115 @@ class Chunk {
         const density = (noise(this.x * 0.1, this.z * 0.1) + 1) / 2;
         for(let i = 0; i < density * 8; i++) { const rx = (Math.random() - 0.5) * CHUNK_SIZE; const rz = (Math.random() - 0.5) * CHUNK_SIZE; const ry = this.getHeight(rx, rz); const chance = Math.random(); if (chance > 0.4) this.addNewTree(rx, ry, rz); else this.addRock(rx, ry, rz); }
     }
-    addNewTree(x, y, z) { if (!treeModel) return; const tree = treeModel.clone(); tree.position.set(this.x * CHUNK_SIZE + x, y, this.z * CHUNK_SIZE + z); tree.scale.set(1,1,1); tree.rotation.y = Math.random() * Math.PI; this.objects.add(tree); }
-    addRock(x, y, z) { if (rockVariants.length === 0) return; const rock = rockVariants[Math.floor(Math.random() * rockVariants.length)].clone(); const s = 0.1; rock.scale.set(s, s, s); rock.position.set(this.x * CHUNK_SIZE + x, y, this.z * CHUNK_SIZE + z); this.objects.add(rock); }
+    addNewTree(x, y, z) { 
+    if (!treeModel) return; const tree = treeModel.clone(); 
+    const worldX = this.x * CHUNK_SIZE + x; const worldZ = this.z * CHUNK_SIZE + z;
+    tree.position.set(worldX, y, worldZ); tree.scale.set(1,1,1); tree.rotation.y = Math.random() * Math.PI; this.objects.add(tree);
+    colliders.push({ x: worldX, z: worldZ, radius: 0.9 });
+}
+
+addRock(x, y, z) { 
+    if (rockVariants.length === 0) return; const rock = rockVariants[Math.floor(Math.random() * rockVariants.length)].clone(); const s = 0.1; 
+    const worldX = this.x * CHUNK_SIZE + x; const worldZ = this.z * CHUNK_SIZE + z;
+    rock.scale.set(s, s, s); rock.position.set(worldX, y, worldZ); this.objects.add(rock);
+    colliders.push({ x: worldX, z: worldZ, radius: 1.3 });
+}
+
     dispose() { scene.remove(this.mesh, this.objects); this.mesh.geometry.dispose(); this.mesh.material.dispose(); }
 }
 
 const chunks = new Map();
 function updateChunks() {
     const px = Math.floor(camera.position.x / CHUNK_SIZE); const pz = Math.floor(camera.position.z / CHUNK_SIZE);
+    colliders.length = 0;
     for (let x = px - VIEW_DISTANCE; x <= px + VIEW_DISTANCE; x++) for (let z = pz - VIEW_DISTANCE; z <= pz + VIEW_DISTANCE; z++) if (!chunks.has(`${x},${z}`)) chunks.set(`${x},${z}`, new Chunk(x, z));
     for (const [id, c] of chunks) if (Math.abs(c.x - px) > VIEW_DISTANCE || Math.abs(c.z - pz) > VIEW_DISTANCE) { c.dispose(); chunks.delete(id); }
 }
-
 const controls = new PointerLockControls(camera, document.body);
+window.controlsMaster = controls;
+
 const moveState = { forward: 0, right: 0, vY: 0, onGround: false };
 window.moveState = moveState; // EXPORTED
 const keys = {};
 window.addEventListener('keydown', (e) => keys[e.code] = true);
-window.addEventListener('keyup', (e) => keys[e.code] = false);
+window.addEventListener('keyup', (e) => keys[e.code] = false); 
 
 const joyWrapper = document.getElementById('joystick-wrapper');
 const joyKnob = document.getElementById('joystick-knob');
 const jumpBtn = document.getElementById('jump-button');
 let lastTouchX = 0, lastTouchY = 0, touchLookId = null, joyActive = false;
 
+// --- GANTI HANYA BLOK IF (WINDOW.ISMOBILE) DI SCRIPT MODULE DENGAN INI ---
 if (window.isMobile) {
     joyWrapper.style.display = 'block'; jumpBtn.style.display = 'flex';
+    
     window.addEventListener('touchstart', (e) => { 
-        for (let t of e.changedTouches) { 
-            if (t.clientX > window.innerWidth / 2) { lastTouchX = t.clientX; lastTouchY = t.clientY; touchLookId = t.identifier; } 
-            else if (!window.isHoldingCamera) joyActive = true; // Only move if not holding cam
+        if (window.gameState !== "PLAYING") return;
+        for (let t of e.changedTouches) {
+            // Memisahkan area kanan (untuk kamera/POV) dan area kiri (untuk joystick)
+            if (t.clientX > window.innerWidth / 2) { 
+                lastTouchX = t.clientX; lastTouchY = t.clientY; touchLookId = t.identifier; 
+            } else if (!window.isHoldingCamera) {
+                joyActive = true; 
+            }
         } 
     });
+
     window.addEventListener('touchmove', (e) => { 
+        if (window.gameState !== "PLAYING") return;
         e.preventDefault(); 
+
         for (let t of e.changedTouches) { 
-            if (t.identifier === touchLookId) { // LOOKING - Always allowed
-                camera.rotation.y -= (t.clientX - lastTouchX) * 0.006; 
-                camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x - (t.clientY - lastTouchY) * 0.005)); 
+            if (t.identifier === touchLookId) { 
+                // --- POV / LOOKING SLIDE CONFIG ---
+                // Sesuai rumusmu: Up/Down jadi Left/Right, Left/Right jadi Up/Down
+                let deltaPortraitX = t.clientX - lastTouchX;
+                let deltaPortraitY = t.clientY - lastTouchY;
+
+                camera.rotation.y -= deltaPortraitY * 0.006; 
+                camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x - deltaPortraitX * 0.005)); 
+                
                 lastTouchX = t.clientX; lastTouchY = t.clientY; 
-            } else if (joyActive && t.clientX <= window.innerWidth / 2) { // MOVING
-                const rect = joyWrapper.getBoundingClientRect(); const dist = Math.min(60, Math.sqrt((t.clientX-(rect.left+rect.width/2))**2 + (t.clientY-(rect.top+rect.height/2))**2)); const angle = Math.atan2(t.clientY-(rect.top+rect.height/2), t.clientX-(rect.left+rect.width/2)); joyKnob.style.left = (50 + (Math.cos(angle)*dist/60)*50)+'%'; joyKnob.style.top = (50 + (Math.sin(angle)*dist/60)*50)+'%'; moveState.forward = -Math.sin(angle)*(dist/60); moveState.right = Math.cos(angle)*(dist/60); 
+            } else if (joyActive && t.clientX <= window.innerWidth / 2) { 
+                // --- JOYSTICK MOVEMENT CONFIG ---
+                const rect = joyWrapper.getBoundingClientRect(); 
+                const joyCenterX = rect.left + rect.width / 2;
+                const joyCenterY = rect.top + rect.height / 2;
+                
+                // Ambil delta jarak murni dari pusat analog
+                let dx = t.clientX - joyCenterX;
+                let dy = t.clientY - joyCenterY;
+                
+                // Sesuai rumusmu: Membalik arah sumbu joystick untuk pergerakan karakter
+                let rotatedDx = dy;
+                let rotatedDy = -dx;
+
+                const dist = Math.min(60, Math.sqrt(rotatedDx * rotatedDx + rotatedDy * rotatedDy)); 
+                const angle = Math.atan2(rotatedDy, rotatedDx); 
+
+                // Menggerakkan knob visual analog agar tetap lurus di layar
+                joyKnob.style.left = (50 + (Math.cos(angle) * dist / 60) * 50) + '%'; 
+                joyKnob.style.top = (50 + (Math.sin(angle) * dist / 60) * 50) + '%'; 
+                
+                // Kirim hasil akhir ke pergerakan karakter game
+moveState.forward = Math.sin(angle) * (dist / -60); 
+moveState.right = Math.cos(angle) * (dist / 60);
+ 
             } 
         } 
     }, { passive: false });
-    window.addEventListener('touchend', (e) => { for (let t of e.changedTouches) { if (t.identifier === touchLookId) touchLookId = null; else { joyActive = false; joyKnob.style.left = joyKnob.style.top = '50%'; moveState.forward = moveState.right = 0; } } });
-    jumpBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if(moveState.onGround) moveState.vY = 12; });
+
+    window.addEventListener('touchend', (e) => { 
+        for (let t of e.changedTouches) { 
+            if (t.identifier === touchLookId) touchLookId = null; 
+            else { 
+                joyActive = false; joyKnob.style.left = joyKnob.style.top = '50%'; 
+                moveState.forward = moveState.right = 0; 
+            } 
+        } 
+    });
+    
+    jumpBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if(window.gameState === "PLAYING" && moveState.onGround) moveState.vY = 12; });
 }
 
 function getTerrainHeight(x, z) { const c = chunks.get(`${Math.floor(x/CHUNK_SIZE)},${Math.floor(z/CHUNK_SIZE)}`); return c ? c.getHeight(x - c.x*CHUNK_SIZE, z - c.z*CHUNK_SIZE) : 0; }
@@ -363,6 +508,7 @@ function animate() {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
     
+    // --- 1. TIME OF DAY & LIGHTING LOGIC (Stays active in background) ---
     worldTime += delta * DAY_SPEED;
     let easedTime = worldTime + Math.sin(worldTime) * 0.5; 
     const posX = Math.cos(easedTime) * 600; const posY = Math.sin(easedTime) * 600;
@@ -371,36 +517,81 @@ function animate() {
     stars.position.set(camera.position.x, 0, camera.position.z);
     sunLight.position.copy(sunVisual.position);
 
-    if (posY > 100) { scene.background.lerp(skyColors.day, 0.02); scene.fog.color.lerp(skyColors.day, 0.02); sunLight.intensity = 1.0; starMat.opacity = THREE.MathUtils.lerp(starMat.opacity, 0, 0.02); } 
-    else if (posY <= 100 && posY > -100) { scene.background.lerp(skyColors.sunset, 0.02); scene.fog.color.lerp(skyColors.sunset, 0.02); sunLight.intensity = 0.6; starMat.opacity = THREE.MathUtils.lerp(starMat.opacity, 0.3, 0.02); } 
-    else { scene.background.lerp(skyColors.night, 0.02); scene.fog.color.lerp(skyColors.night, 0.02); sunLight.intensity = 0.1; starMat.opacity = THREE.MathUtils.lerp(starMat.opacity, 1.0, 0.02); }
+    if (posY > 100) { 
+        scene.background.lerp(skyColors.day, 0.02); 
+        scene.fog.color.lerp(skyColors.day, 0.02); 
+        sunLight.intensity = 1.0; 
+        starMat.opacity = THREE.MathUtils.lerp(starMat.opacity, 0, 0.02); 
+    } else if (posY <= 100 && posY > -100) { 
+        scene.background.lerp(skyColors.sunset, 0.02); 
+        scene.fog.color.lerp(skyColors.sunset, 0.02); 
+        sunLight.intensity = 0.6; 
+        starMat.opacity = THREE.MathUtils.lerp(starMat.opacity, 0.3, 0.02); 
+    } else { 
+        scene.background.lerp(skyColors.night, 0.02); 
+        scene.fog.color.lerp(skyColors.night, 0.02); 
+        sunLight.intensity = 0.1; 
+        starMat.opacity = THREE.MathUtils.lerp(starMat.opacity, 1.0, 0.02); 
+    }
 
-    // MOVEMENT: Only if NOT holding camera
-    if (!window.isHoldingCamera && (controls.isLocked || window.isMobile)) {
+    // --- 2. REPLACED MOVEMENT & PHYSICS COLLISION PIPELINE ---
+    if (window.gameState === "PLAYING" && !window.isHoldingCamera && (controls.isLocked || window.isMobile)) {
         let ix = window.isMobile ? moveState.right : (keys['KeyD']?1:0)-(keys['KeyA']?1:0);
         let iz = window.isMobile ? moveState.forward : (keys['KeyW']?1:0)-(keys['KeyS']?1:0);
         const moveDir = new THREE.Vector3(ix, 0, -iz); if(moveDir.length() > 0) moveDir.normalize();
         moveDir.applyQuaternion(camera.quaternion); moveDir.y = 0;
-        camera.position.addScaledVector(moveDir, 12 * delta);
+        
+        // Predict where the player wants to step next
+        let targetX = camera.position.x + moveDir.x * 12 * delta;
+        let targetZ = camera.position.z + moveDir.z * 12 * delta;
+        
+        // Check if that step collides with any registered tree/rock radius
+        let isColliding = false;
+        let playerRadius = 0.6; // Physical body size of the player
+        for (let i = 0; i < colliders.length; i++) {
+            let obj = colliders[i];
+            let distance = Math.sqrt((targetX - obj.x)**2 + (targetZ - obj.z)**2);
+            if (distance < (obj.radius + playerRadius)) { 
+                isColliding = true; 
+                break; // Stop checking immediately if a hit is detected
+            }
+        }
+
+        // Only commit movement updates if the space ahead is clear
+        if (!isColliding) { 
+            camera.position.x = targetX; 
+            camera.position.z = targetZ; 
+        }
+
+        // Jump & Gravity calculations
         moveState.vY -= 25 * delta;
         camera.position.y += moveState.vY * delta;
         const ground = getTerrainHeight(camera.position.x, camera.position.z) + 1.8;
-        if (camera.position.y <= ground) { camera.position.y = ground; moveState.vY = 0; moveState.onGround = true; if(!window.isMobile && keys['Space']) moveState.vY = 12; } else moveState.onGround = false;
+        if (camera.position.y <= ground) { 
+            camera.position.y = ground; 
+            moveState.vY = 0; 
+            moveState.onGround = true; 
+            if(!window.isMobile && keys['Space']) moveState.vY = 12; 
+        } else {
+            moveState.onGround = false;
+        }
     }
 
-    // SHAKE & OIS
-    if (window.isHoldingCamera) {
+    // --- 3. CAMERA SHAKE / OIS LOGIC (Only runs when playing) ---
+    if (window.gameState === "PLAYING" && window.isHoldingCamera) {
         camera.rotation.x -= prevShakeX; camera.rotation.y -= prevShakeY;
         let time = performance.now() * 0.001;
         let shakeAmount = window.camState.ois ? 0.0002 : 0.0015; 
-        let shakeX = (Math.sin(time* 2.0) + Math.cos(time * 4.2)) * shakeAmount;
-        let shakeY = (Math.cos(time* 1.8) + Math.sin(time * 3.5)) * shakeAmount; // Menambahkan definisi shakeY yang sebelumnya hilang
+        let shakeX = (Math.sin(time * 2.0) + Math.cos(time * 4.2)) * shakeAmount;
+        let shakeY = (Math.cos(time * 1.8) + Math.sin(time * 3.5)) * shakeAmount;
         camera.rotation.x += shakeX; camera.rotation.y += shakeY;
         prevShakeX = shakeX; prevShakeY = shakeY;
-    } else { prevShakeX = 0; prevShakeY = 0; }
+    } else { 
+        prevShakeX = 0; prevShakeY = 0; 
+    }
 
-    // AUTO BRIGHTNESS
-    if (window.isHoldingCamera && !window.camState.brightnessLocked) {
+    // --- 4. EXPOSURE / AUTO BRIGHTNESS CALCULATIONS (Only runs when playing) ---
+    if (window.gameState === "PLAYING" && window.isHoldingCamera && !window.camState.brightnessLocked) {
         let targetExposure = 1.0;
         if (posY > 100) targetExposure = 1.0; else if (posY > -100) targetExposure = 1.5; else targetExposure = 3.0;
         if (window.camState.iso === 1) targetExposure *= 1.5; if (window.camState.iso === 2) targetExposure *= 2.5;
@@ -411,17 +602,40 @@ function animate() {
     }
     renderer.toneMappingExposure = window.camState.brightness;
 
+    // --- 5. RENDER CHUNKS & FRAME ---
     updateChunks();
     renderer.render(scene, camera);
 }
 camera.position.set(0, 10, 0);
 animate();
 
-window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+window.addEventListener('resize', () => {
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    if (window.isMobile) {
+        // BALIK dimensinya: TUKAR lebar jadi tinggi, tinggi jadi lebar
+        // Ini akan memotong efek kompresi CSS miringmu
+        camera.aspect = height / width; 
+    } else {
+        // Untuk PC tetap normal
+        camera.aspect = width / height;
+    }
+
+    camera.updateProjectionMatrix();
+    
+    // Pastikan ukuran canvas renderer tetap menggunakan resolusi asli browser
+    renderer.setSize(width, height);
+});
+
+// Pemicu awal saat game pertama kali dimuat di HP
+if (window.isMobile) {
+    window.dispatchEvent(new Event('resize'));
+}
+
 </script>
 
 <script>
-// MUST BE DEFINED FIRST! Prevents "Cannot read properties of undefined" errors
 window.isHoldingCamera = false;
 window.camState = window.camState || {
     mode: 0, modes: ["NORMAL", "MACRO", "VID", "SLOWMO", "GALLERY"],
@@ -430,14 +644,38 @@ window.camState = window.camState || {
     isRecording: false, mediaRecorder: null, recordedChunks: []
 };
 
+
+async function startGame() {
+    window.gameState = "PLAYING";
+    
+    document.getElementById('lobby-menu').style.display = 'none';
+    document.getElementById('inventory-bar').style.display = 'flex';
+    document.getElementById('crosshair').style.display = 'block';
+    document.getElementById('instructions').style.display = 'block';
+
+    // Paksa update ukuran canvas setelah UI berubah
+    window.dispatchEvent(new Event('resize'));
+
+    // Fullscreen standar (aman tanpa takut gagal orientasi sistem)
+    const elem = document.documentElement;
+    try {
+        if (elem.requestFullscreen) await elem.requestFullscreen();
+        else if (elem.webkitRequestFullscreen) await elem.webkitRequestFullscreen();
+    } catch (e) {
+        console.log("Fullscreen ditolak browser, tapi rotasi CSS tetap aman.");
+    }
+
+    if (!window.isMobile && window.controlsMaster) {
+        window.controlsMaster.lock();
+    }
+}
 function useItem(item) {
     window.isHoldingCamera = (item === 'cam');
     
-    // --- TAMBAHKAN KODE INI ---
+    // OTOMATIS RESET ZOOM KE 1x SAAT TEKAN TOMBOL TANGAN (✋)
     if (item === 'hand') {
-        setZoom(1); // Reset zoom ke 1x saat pindah ke tangan
+        setZoom(1); 
     }
-    // --------------------------
 
     document.getElementById('digicam-body').style.display = window.isHoldingCamera ? 'block' : 'none';
     document.getElementById('joystick-wrapper').style.display = window.isHoldingCamera ? 'none' : (window.isMobile ? 'block' : 'none');
