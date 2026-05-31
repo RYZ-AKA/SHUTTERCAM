@@ -73,9 +73,14 @@
 }
         
         #crosshair {
-            position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
-            border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%);
-            pointer-events: none; opacity: 0.5; z-index: 5;
+          position: absolute;
+          top: 50%;
+          left: 50%; color: white;
+          width: 5px;
+          height: 5px;
+          ransform: translate(-50%, -50%);
+          pointer-events: none; opacity: 0.5;
+          z-index: 5;
         }
 
         /* INVENTORY BAR */
@@ -96,7 +101,7 @@
             background: transparent; display: none; z-index: 100; pointer-events: none;
         }
         #cam-viewport {
-            position: absolute; top: 5%; left: 5%; width: 90%; height: 60%;
+            position: absolute; top: 5%; left: 5%; width: 90%; height: 80%;
             border: 3px solid rgba(255,255,255,0.3); border-radius: 15px;
             overflow: hidden; background: transparent; pointer-events: auto;
         }
@@ -174,7 +179,7 @@
         <div id="slot-cam" class="inv-item" onclick="useItem('cam')">📷</div>
     </div>
 
-    <div id="crosshair"></div>
+    <div id="crosshair">+</div>
     <div id="joystick-wrapper"><div id="joystick-knob"></div></div>
     <div id="jump-button">JUMP</div>
 
@@ -203,7 +208,7 @@
                         <span onclick="setZoom(1)" class="active-zoom">1</span>
                         <span onclick="setZoom(5)">5</span>
                     </div>
-                    <input type="range" id="zoom-slider" min="0.5" max="10" step="0.1" value="1" oninput="setZoom(this.value)">
+                    <input type="range" id="zoom-slider" min="0.5" max="100" step="0.1" value="1" oninput="setZoom(this.value)">
                     <span id="zoom-val" style="width: 40px;">1x</span>
                 </div>
                 <div class="bright-row">
@@ -309,8 +314,22 @@ scene.fog = new THREE.FogExp2(0x87ceeb, 0.01);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
 camera.rotation.order = 'YXZ';
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+// === CARI KODE RENDERER KAMU, LALU SUNTIKKAN BARIS INI ===
+const renderer = new THREE.WebGLRenderer({ 
+    antialias: true, 
+    powerPreference: "high-performance",
+    
+    // 🚀 KUNCI UTAMA FIX BLACK SCREEN: LOCK MEMORI GAMBAR CANVAS
+    preserveDrawingBuffer: true 
+});
+
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.87));
 renderer.setSize(window.innerWidth, window.innerHeight);
+
+// 2. PEMBATAS PIXEL RATIO (KUNCI AGAR AGAR HP GAK LAG)
+// Jika devicePixelRatio HP kamu 3 atau 4, kita batasi maksimal di 2 saja.
+// Ini sudah sangat tajam di layar kecil HP dan gak bikin performa drop.
+
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
@@ -324,7 +343,8 @@ window.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini
 scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
 const gltfLoader = new GLTFLoader();
-const rockVariants = []; let treeModel = null;
+const rockVariants = []; let treeModel = null;let treeInstancedMesh = null;
+const MAX_FOREST_TREES = 5000; 
 // === CODE UNTUK BATU (stone.glb) ===
 gltfLoader.load('https://cdn.jsdelivr.net/gh/RYZ-AKA/SHUTTERCAM@main/stone.glb', (gltf) => { 
     gltf.scene.traverse((child) => { 
@@ -343,27 +363,37 @@ gltfLoader.load('https://cdn.jsdelivr.net/gh/RYZ-AKA/SHUTTERCAM@main/stone.glb',
             rockVariants.push(child); 
         } 
     }); 
-    updateChunks(); 
+    updateChunks(true); 
 });
 
 // === CODE UNTUK POHON (stylized_tree_1.glb) ===
 gltfLoader.load('https://cdn.jsdelivr.net/gh/RYZ-AKA/SHUTTERCAM@main/stylized_tree_1.glb', (gltf) => { 
     treeModel = gltf.scene; 
+    
+    // Cari mesh utama di dalam file GLTF pohon
+    let treeMesh = null;
     treeModel.traverse((child) => { 
         if (child.isMesh) { 
-            child.castShadow = true; 
-            child.receiveShadow = true; 
-            
-            // --- SELIPKAN INI UNTUK MENAJAMKAN TEKSTUR POHON ---
+            treeMesh = child;
+            // Optimasi filter tekstur biar gak buram dari jauh
             if (child.material && child.material.map) {
                 child.material.map.magFilter = THREE.LinearFilter;
                 child.material.map.minFilter = THREE.LinearMipmapLinearFilter;
                 child.material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
-                child.material.needsUpdate = true;
             }
         } 
     }); 
-    updateChunks(); 
+
+    if (treeMesh) {
+        // Buat cetakan massal pohon (InstancedMesh)
+        treeInstancedMesh = new THREE.InstancedMesh(treeMesh.geometry, treeMesh.material, MAX_FOREST_TREES);
+        treeInstancedMesh.castShadow = true;
+        treeInstancedMesh.receiveShadow = true;
+        treeInstancedMesh.count = 0; // Mulai dari 0 pohon terpasang
+        scene.add(treeInstancedMesh);
+    }
+
+    updateChunks(true); 
 });
 
 const sunLight = new THREE.DirectionalLight(0xffffff, 1); sunLight.castShadow = true;
@@ -385,33 +415,84 @@ class Chunk {
         geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3)); geo.computeVertexNormals();
         this.mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
         this.mesh.position.set(this.x * CHUNK_SIZE, 0, this.z * CHUNK_SIZE); this.mesh.receiveShadow = true; scene.add(this.mesh, this.objects);
+        
+        // ====================================================
+        // 🚀 SETTINGAN BARU: BOM JUMLAH POHON (BIAR LEBAT BANGET)
+        // ====================================================
         const density = (noise(this.x * 0.1, this.z * 0.1) + 1) / 2;
-        for(let i = 0; i < density * 8; i++) { const rx = (Math.random() - 0.5) * CHUNK_SIZE; const rz = (Math.random() - 0.5) * CHUNK_SIZE; const ry = this.getHeight(rx, rz); const chance = Math.random(); if (chance > 0.4) this.addNewTree(rx, ry, rz); else this.addRock(rx, ry, rz); }
+        
+        // Angka 8 diganti ke 45 agar objek yang spawn berkali-kali lipat lebih padat
+        for(let i = 0; i < density * 10; i++) { 
+            const rx = (Math.random() - 0.5) * CHUNK_SIZE; 
+            const rz = (Math.random() - 0.5) * CHUNK_SIZE; 
+            const ry = this.getHeight(rx, rz); 
+            const chance = Math.random(); 
+            
+            // Peluang diubah ke 0.2 agar pohon (80%) jauh lebih banyak daripada batu (20%)
+            if (chance > 0.2) {
+                this.addNewTree(rx, ry, rz); 
+            } else {
+                this.addRock(rx, ry, rz); 
+            }
+        }
     }
+    
     addNewTree(x, y, z) { 
-    if (!treeModel) return; const tree = treeModel.clone(); 
-    const worldX = this.x * CHUNK_SIZE + x; const worldZ = this.z * CHUNK_SIZE + z;
-    tree.position.set(worldX, y, worldZ); tree.scale.set(1,1,1); tree.rotation.y = Math.random() * Math.PI; this.objects.add(tree);
-    colliders.push({ x: worldX, z: worldZ, radius: 0.9 });
-}
+        if (!treeModel) return; const tree = treeModel.clone(); 
+        const worldX = this.x * CHUNK_SIZE + x; const worldZ = this.z * CHUNK_SIZE + z;
+        tree.position.set(worldX, y, worldZ); 
+        
+        // Variasi skala ukuran pohon acak (0.8 - 1.4) biar kelihatan alami dan bervariasi hutannya
+        const randomScale = 0.8 + Math.random() * 0.6;
+        tree.scale.set(randomScale, randomScale, randomScale); 
+        
+        tree.rotation.y = Math.random() * Math.PI; this.objects.add(tree);
+        colliders.push({ x: worldX, z: worldZ, radius: 0.9 * randomScale });
+    }
 
-addRock(x, y, z) { 
-    if (rockVariants.length === 0) return; const rock = rockVariants[Math.floor(Math.random() * rockVariants.length)].clone(); const s = 0.1; 
-    const worldX = this.x * CHUNK_SIZE + x; const worldZ = this.z * CHUNK_SIZE + z;
-    rock.scale.set(s, s, s); rock.position.set(worldX, y, worldZ); this.objects.add(rock);
-    colliders.push({ x: worldX, z: worldZ, radius: 1.3 });
-}
+    addRock(x, y, z) { 
+        if (rockVariants.length === 0) return; const rock = rockVariants[Math.floor(Math.random() * rockVariants.length)].clone(); 
+        const s = 0.1 + Math.random() * 0.1; // Sedikit variasi ukuran batu
+        const worldX = this.x * CHUNK_SIZE + x; const worldZ = this.z * CHUNK_SIZE + z;
+        rock.scale.set(s, s, s); rock.position.set(worldX, y, worldZ); this.objects.add(rock);
+        colliders.push({ x: worldX, z: worldZ, radius: 1.3 * (s / 0.1) });
+    }
 
     dispose() { scene.remove(this.mesh, this.objects); this.mesh.geometry.dispose(); this.mesh.material.dispose(); }
 }
 
 const chunks = new Map();
-function updateChunks() {
-    const px = Math.floor(camera.position.x / CHUNK_SIZE); const pz = Math.floor(camera.position.z / CHUNK_SIZE);
+function updateChunks(forceRefresh = false) {
+    const px = Math.floor(camera.position.x / CHUNK_SIZE); 
+    const pz = Math.floor(camera.position.z / CHUNK_SIZE);
+    
     colliders.length = 0;
-    for (let x = px - VIEW_DISTANCE; x <= px + VIEW_DISTANCE; x++) for (let z = pz - VIEW_DISTANCE; z <= pz + VIEW_DISTANCE; z++) if (!chunks.has(`${x},${z}`)) chunks.set(`${x},${z}`, new Chunk(x, z));
-    for (const [id, c] of chunks) if (Math.abs(c.x - px) > VIEW_DISTANCE || Math.abs(c.z - pz) > VIEW_DISTANCE) { c.dispose(); chunks.delete(id); }
+
+    // JIKA DIPAKSA REFRESH (saat awal game), BERSIHKAN CHUNK LAMA YANG KOSONG
+    if (forceRefresh) {
+        for (const [id, c] of chunks) {
+            c.dispose();
+        }
+        chunks.clear();
+    }
+
+    for (let x = px - VIEW_DISTANCE; x <= px + VIEW_DISTANCE; x++) {
+        for (let z = pz - VIEW_DISTANCE; z <= pz + VIEW_DISTANCE; z++) {
+            if (!chunks.has(`${x},${z}`)) {
+                chunks.set(`${x},${z}`, new Chunk(x, z));
+            }
+        }
+    }
+
+    for (const [id, c] of chunks) {
+        if (Math.abs(c.x - px) > VIEW_DISTANCE || Math.abs(c.z - pz) > VIEW_DISTANCE) { 
+            c.dispose(); 
+            chunks.delete(id); 
+        }
+    }
 }
+
+
 const controls = new PointerLockControls(camera, document.body);
 window.controlsMaster = controls;
 
@@ -454,7 +535,7 @@ if (window.isMobile) {
                 let deltaPortraitY = t.clientY - lastTouchY;
 
                 camera.rotation.y -= deltaPortraitY * 0.006; 
-                camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x - deltaPortraitX * 0.005)); 
+                camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x + deltaPortraitX * 0.005)); 
                 
                 lastTouchX = t.clientX; lastTouchY = t.clientY; 
             } else if (joyActive && t.clientX <= window.innerWidth / 2) { 
@@ -609,6 +690,9 @@ function animate() {
 camera.position.set(0, 10, 0);
 animate();
 
+updateChunks();
+
+
 window.addEventListener('resize', () => {
     let width = window.innerWidth;
     let height = window.innerHeight;
@@ -753,13 +837,75 @@ async function takeAction() {
 }
 
 function capturePhoto() {
-    if (window.camState.flash > 0) { const f = document.createElement('div'); f.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:white;z-index:999;pointer-events:none;"; document.body.appendChild(f); setTimeout(() => f.remove(), 100); }
-    const canvas = window.gameCanvas; const tempCanvas = document.createElement('canvas'); tempCanvas.width = canvas.width; tempCanvas.height = canvas.height;
-    const ctx = tempCanvas.getContext('2d'); ctx.drawImage(canvas, 0, 0);
-    if (window.camState.watermark) { ctx.font = "24px Arial"; ctx.fillStyle = "rgba(255, 255, 255, 0.8)"; ctx.shadowColor = "black"; ctx.shadowBlur = 4; let text = "DIGICAM 2026 | " + new Date().toLocaleString(); ctx.fillText(text, 20, tempCanvas.height - 30); }
-    const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.9); let id = 'digi_' + Date.now(); localStorage.setItem(id, dataUrl);
-    const link = document.createElement('a'); link.download = `DIGI_${Date.now()}.jpg`; link.href = dataUrl; link.click();
+    // 1. Efek Flash Kamera
+    if (window.camState.flash > 0) { 
+        const f = document.createElement('div'); 
+        f.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:white;z-index:999;pointer-events:none;"; 
+        document.body.appendChild(f); 
+        setTimeout(() => f.remove(), 100); 
+    }
+
+    const canvas = window.gameCanvas; 
+    // Pastikan variabel utama Three.js kamu (renderer, camera, scene) bisa diakses di sini
+    if (!canvas || !renderer || !camera || !scene) return; 
+
+    // 2. SIMPAN SETTINGAN ASLI (PORTRAIT) BEFORE SNAPSHOT
+    const originalWidth = canvas.width;
+    const originalHeight = canvas.height;
+    const originalAspect = camera.aspect;
+
+    // 3. PAKSA THREE.JS RENDER RESOLUSI LANDSCAPE MURNI
+    const targetWidth = Math.max(originalWidth, originalHeight);
+    const targetHeight = Math.min(originalWidth, originalHeight);
+
+    renderer.setSize(targetWidth, targetHeight, false);
+    camera.aspect = targetWidth / targetHeight;
+    camera.updateProjectionMatrix();
+
+    // Gambar ulang dunia game ke buffer landscape baru
+    renderer.render(scene, camera);
+
+    // 4. UNDUH DATA BUFFER KE CANVAS 2D (OTOMATIS PROPORSIONAL)
+    const tempCanvas = document.createElement('canvas'); 
+    tempCanvas.width = targetWidth; 
+    tempCanvas.height = targetHeight; 
+    const ctx = tempCanvas.getContext('2d');
+    
+    // Copy buffer tanpa rotasi manual karena resolusi internal sudah landscape murni
+    ctx.drawImage(canvas, 0, 0);
+
+    // 5. KEMBALIKAN RES KANVAS GAME KE SEMULA (Biar Layar HP Gak Rusak/Pecah)
+    renderer.setSize(originalWidth, originalHeight, false);
+    camera.aspect = originalAspect;
+    camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
+
+    // 6. CETAK WATERMARK DI CANVAS LANDSCAPE
+    if (window.camState.watermark) { 
+        const fontSize = Math.floor(tempCanvas.height * 0.04) || 24;
+        ctx.font = `${fontSize}px Arial`; 
+        ctx.fillStyle = "rgba(255, 255, 255, 0.8)"; 
+        ctx.shadowColor = "black"; 
+        ctx.shadowBlur = 4; 
+        
+        let text = "DIGICAM 2026 | " + new Date().toLocaleString(); 
+        ctx.fillText(text, 30, tempCanvas.height - 40); 
+    }
+
+    // 7. GENERATE DATA FILE & DOWNLOAD
+    const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.95); 
+
+    try {
+        let id = 'digi_' + Date.now(); 
+        localStorage.setItem(id, dataUrl);
+    } catch (error) {}
+
+    const link = document.createElement('a'); 
+    link.download = `DIGI_${Date.now()}.jpg`; 
+    link.href = dataUrl; 
+    link.click();
 }
+
 
 function handleVideo() {
     if (!window.camState.isRecording) {
